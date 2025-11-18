@@ -1,0 +1,89 @@
+version: '3.8'
+
+services:
+  smart-diagram:
+    # 构建配置
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner  # 只构建生产阶段
+    # 生产镜像（如果使用预构建镜像）
+    # image: ghcr.io/your-username/smart-diagram:latest
+
+    # 容器配置
+    container_name: smart-diagram
+    hostname: smart-diagram
+
+    # 端口映射
+    ports:
+      - "3000:3000"
+
+    # 环境变量
+    environment:
+      - NODE_ENV=production
+      - NEXT_TELEMETRY_DISABLED=1
+      # 可选的服务器端 LLM 配置
+      # - SERVER_LLM_TYPE=openai
+      # - SERVER_LLM_BASE_URL=https://api.openai.com/v1
+      # - SERVER_LLM_API_KEY=your-api-key
+      # - SERVER_LLM_MODEL=gpt-4
+      # - ACCESS_PASSWORD=your-secure-password
+
+    # 卷映射（用于持久化数据）
+    volumes:
+      # 数据持久化目录（如果有需要）
+      # - ./data:/app/data
+
+      # 日志目录
+      # - ./logs:/app/logs
+
+    # 网络配置
+    networks:
+      - smart-diagram-network
+
+    # 重启策略
+    restart: unless-stopped
+
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    # 资源限制
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+    # 安全配置
+    security_opt:
+      - no-new-privileges:true
+
+    # 用户配置
+    user: "1001:1001"  # 非 root 用户
+
+    # 日志配置
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  smart-diagram-network:
+    driver: bridge
+    name: smart-diagram-network
+
+# 数据卷定义
+volumes:
+  # smart-diagram-data:
+  #   driver: local
+  # smart-diagram-logs:
+  #   driver: local
