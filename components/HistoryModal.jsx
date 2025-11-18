@@ -25,10 +25,12 @@ export default function HistoryModal({ isOpen, onClose, onApply, editorType }) {
             return edt === editorType;
           })
         : [];
-      setHistories(filtered);
+
+      // Use microtask to avoid setState in useCallback
+      Promise.resolve().then(() => setHistories(filtered));
     } catch (e) {
       console.error('Failed to load histories', e);
-      setHistories([]);
+      Promise.resolve().then(() => setHistories([]));
     }
   }, [editorType]);
 

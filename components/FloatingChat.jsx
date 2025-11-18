@@ -194,14 +194,19 @@ export default function FloatingChat({
   // Reset input and selected attachments when conversation changes (new chat)
   useEffect(() => {
     if (!conversationId) return;
-    setInput('');
-    // Revoke any object URLs to avoid leaks
+
+    // Use a microtask to avoid setState in effect
+    Promise.resolve().then(() => {
+      setInput('');
+      setImages([]);
+      setFiles([]);
+    });
+
+    // Revoke any object URLs to avoid leaks (sync operation is fine)
     try {
       images?.forEach(img => img?.url && URL.revokeObjectURL(img.url));
     } catch {}
-    setImages([]);
-    setFiles([]);
-  }, [conversationId]);
+  }, [conversationId, images]);
 
   // Close chart type menu on outside click or Escape
   useEffect(() => {
