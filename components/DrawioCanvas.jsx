@@ -39,7 +39,7 @@ const DrawioCanvas = forwardRef(function DrawioCanvas(
       mergeDiagram: (xmlData) => action.merge({ xml: xmlData }),
       getXml: action.getXml
     }),
-    [action.exportDiagram, action.merge, action.getXml]
+    [action]
   );
 
   // Handle messages from Draw.io iframe

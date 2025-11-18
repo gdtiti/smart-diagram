@@ -136,6 +136,11 @@ export default function DrawPage() {
     return () => window.removeEventListener('chatpanel-visibility-change', onVisibility);
   }, []);
 
+  // Notification helpers
+  const showNotification = useCallback((opts) => {
+    setNotification({ isOpen: true, title: opts.title || '', message: opts.message || '', type: opts.type || 'info' });
+  }, []);
+
   // 处理引擎切换后的历史恢复
   const [pendingHistory, setPendingHistory] = useState(null);
 
@@ -159,11 +164,6 @@ export default function DrawPage() {
       return () => clearTimeout(timer);
     }
   }, [pendingHistory, engine, showNotification]);
-
-  // Notification helpers
-  const showNotification = useCallback((opts) => {
-    setNotification({ isOpen: true, title: opts.title || '', message: opts.message || '', type: opts.type || 'info' });
-  }, []);
 
   const closeNotification = useCallback(() => {
     setNotification(prev => ({ ...prev, isOpen: false }));
@@ -252,7 +252,7 @@ export default function DrawPage() {
     await engine.handleRestoreHistory(history);
     setIsHistoryModalOpen(false);
     showNotification({ title: '已恢复', message: '历史记录已恢复', type: 'success' });
-  }, [engineType, engine, showNotification, pendingHistory]);
+  }, [engineType, engine, showNotification]);
 
   /**
    * 缓存 Excalidraw elements 解析结果

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { historyManager } from '../lib/history-manager.js';
 import { CHART_TYPES } from '../lib/constants.js';
 import ConfirmDialog from './ConfirmDialog';
@@ -15,13 +15,7 @@ export default function HistoryModal({ isOpen, onClose, onApply, editorType }) {
     onConfirm: null
   });
 
-  useEffect(() => {
-    if (isOpen) {
-      loadHistories();
-    }
-  }, [isOpen]);
-
-  const loadHistories = async () => {
+  const loadHistories = useCallback(async () => {
     try {
       const allHistories = await historyManager.getHistories();
       const filtered = Array.isArray(allHistories)
@@ -36,7 +30,13 @@ export default function HistoryModal({ isOpen, onClose, onApply, editorType }) {
       console.error('Failed to load histories', e);
       setHistories([]);
     }
-  };
+  }, [editorType]);
+
+  useEffect(() => {
+    if (isOpen) {
+      loadHistories();
+    }
+  }, [isOpen, loadHistories]);
 
   const handleApply = (history) => {
     onApply?.(history);

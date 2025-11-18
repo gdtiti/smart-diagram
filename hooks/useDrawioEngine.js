@@ -202,6 +202,7 @@ export function useDrawioEngine() {
       setIsGenerating,
       setStreamingContent,
       setMessages,
+      setLastError,
     ],
   );
 

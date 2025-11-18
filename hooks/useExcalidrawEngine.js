@@ -216,6 +216,7 @@ export function useExcalidrawEngine() {
       setIsGenerating,
       setStreamingContent,
       setMessages,
+      setLastError,
     ],
   );
 
