@@ -91,10 +91,12 @@ jobs:
       packages: write
       # 允许写入 ID token 用于 Docker 镜像签名
       id-token: write
+      # 允许写入仓库内容
+      contents: write
 
     outputs:
-      image: ${{ steps.image.outputs.image }}
-      digest: ${{ steps.build.outputs.digest }}
+      image: ghcr.io/${{ github.repository }}:latest
+      tags: ${{ steps.meta.outputs.tags }}
 
     steps:
       - name: Checkout repository
@@ -150,21 +152,17 @@ jobs:
             NEXT_PUBLIC_VERSION=${{ github.ref_name }}
             NEXT_PUBLIC_COMMIT_SHA=${{ github.sha }}
             NEXT_PUBLIC_BUILD_DATE=${{ github.event.head_commit.timestamp }}
-          # 安全扫描
-          outputs: type=image,name=ghcr.io/${{ github.repository }},push-by-digest=true,name-canonical=true,push=true
 
-      # 导出镜像摘要
-      - name: Export digest
-        id: image
-        run: |
-          echo "digest=${{ steps.build.outputs.digest }}" >> $GITHUB_OUTPUT
-          echo "image=ghcr.io/${{ github.repository }}@${{ steps.build.outputs.digest }}" >> $GITHUB_OUTPUT
+      # 导出镜像信息
+      - name: Image digest
+        run: echo "Successfully built and pushed image"
 
       # 生成 SBOM (Software Bill of Materials)
       - name: Generate SBOM
+        if: github.event.inputs.push_to_registry != 'false' && github.event_name != 'pull_request'
         uses: anchore/sbom-action@v0
         with:
-          image: ${{ steps.image.outputs.image }}
+          image: ghcr.io/${{ github.repository }}:latest
           format: spdx-json
           output-file: sbom.spdx.json
 
@@ -185,7 +183,7 @@ jobs:
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ needs.build-and-push.outputs.image }}
+          image-ref: ghcr.io/${{ github.repository }}:latest
           format: 'sarif'
           output: 'trivy-results.sarif'
 
