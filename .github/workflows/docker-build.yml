@@ -1,0 +1,225 @@
+name: Build and Push Docker Image
+
+on:
+  # 推送到 main 分支时自动触发
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+
+  # 创建 PR 到 main 分支时触发（构建测试镜像）
+  pull_request:
+    branches:
+      - main
+
+  # 手动触发
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Docker image tag (default: branch name or latest)'
+        required: false
+        default: ''
+      push_to_registry:
+        description: 'Push to registry?'
+        required: true
+        default: true
+        type: boolean
+      environment:
+        description: 'Target environment'
+        required: false
+        default: 'production'
+        type: choice
+        options:
+        - production
+        - staging
+        - development
+
+env:
+  # 镜像名称
+  IMAGE_NAME: smart-diagram
+  # GitHub Container Registry
+  REGISTRY: ghcr.io
+
+jobs:
+  # 代码质量检查
+  quality-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'pnpm'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: latest
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run linter
+        run: pnpm lint
+
+  # 构建并推送 Docker 镜像
+  build-and-push:
+    needs: quality-check
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event_name == 'workflow_dispatch'
+
+    permissions:
+      contents: read
+      packages: write
+      # 允许写入 ID token 用于 Docker 镜像签名
+      id-token: write
+
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+      digest: ${{ steps.build.outputs.digest }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 设置 Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 登录到 GitHub Container Registry
+      - name: Log in to GitHub Container Registry
+        if: github.event.inputs.push_to_registry != 'false' && github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 提取元数据
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ghcr.io/${{ github.repository }}
+          tags: |
+            # 永久标签
+            type=ref,event=branch,suffix=-${{ github.run_number }}
+            type=ref,event=pr
+            # 版本标签
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            # 最新标签
+            type=raw,value=latest,enable={{is_default_branch}}
+            # 自定义标签
+            type=raw,value=${{ github.event.inputs.image_tag || github.ref_name }},enable=true
+
+      # 构建并推送镜像
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event.inputs.push_to_registry != 'false' && github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # 构建参数
+          build-args: |
+            NEXT_PUBLIC_VERSION=${{ github.ref_name }}
+            NEXT_PUBLIC_COMMIT_SHA=${{ github.sha }}
+            NEXT_PUBLIC_BUILD_DATE=${{ github.event.head_commit.timestamp }}
+          # 安全扫描
+          outputs: type=image,name=ghcr.io/${{ github.repository }},push-by-digest=true,name-canonical=true,push=true
+
+      # 导出镜像摘要
+      - name: Export digest
+        id: image
+        run: |
+          echo "digest=${{ steps.build.outputs.digest }}" >> $GITHUB_OUTPUT
+          echo "image=ghcr.io/${{ github.repository }}@${{ steps.build.outputs.digest }}" >> $GITHUB_OUTPUT
+
+      # 生成 SBOM (Software Bill of Materials)
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ steps.image.outputs.image }}
+          format: spdx-json
+          output-file: sbom.spdx.json
+
+      # 上传 SBOM 作为构建产物
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.spdx.json
+
+  # 安全扫描
+  security-scan:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.event.inputs.push_to_registry != 'false' && github.event_name != 'pull_request'
+
+    steps:
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ needs.build-and-push.outputs.image }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # 部署到测试环境 (可选)
+  deploy-staging:
+    needs: [build-and-push, security-scan]
+    runs-on: ubuntu-latest
+    if: github.event.inputs.environment == 'staging' && github.event.inputs.push_to_registry != 'false'
+    environment: staging
+
+    steps:
+      - name: Deploy to staging
+        run: |
+          echo "Deploying image ${{ needs.build-and-push.outputs.image }} to staging environment"
+          # 这里可以添加你的部署逻辑
+          # 例如：kubectl apply, docker-compose up, 或调用部署 API
+
+  # 部署到生产环境 (可选)
+  deploy-production:
+    needs: [build-and-push, security-scan]
+    runs-on: ubuntu-latest
+    if: github.event.inputs.environment == 'production' && github.ref == 'refs/heads/main' && github.event.inputs.push_to_registry != 'false'
+    environment: production
+
+    steps:
+      - name: Deploy to production
+        run: |
+          echo "Deploying image ${{ needs.build-and-push.outputs.image }} to production environment"
+          # 这里可以添加你的生产环境部署逻辑
+          # 例如：kubectl apply, docker-compose up, 或调用部署 API
+
+  # 清理旧镜像 (可选)
+  cleanup:
+    needs: [build-and-push]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event.inputs.push_to_registry != 'false'
+
+    steps:
+      - name: Delete old GitHub Container Registry images
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: ${{ env.IMAGE_NAME }}
+          package-type: 'container'
+          min-versions-to-keep: 5
+          delete-only-untagged-versions: true

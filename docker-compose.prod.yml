@@ -1,0 +1,95 @@
+version: '3.8'
+
+services:
+  smart-diagram:
+    # 使用预构建的生产镜像
+    image: ghcr.io/${GITHUB_REPOSITORY:-your-username/smart-diagram}:latest
+
+    # 容器配置
+    container_name: smart-diagram-prod
+    hostname: smart-diagram-prod
+
+    # 端口映射（生产环境可考虑使用反向代理）
+    ports:
+      - "3000:3000"
+
+    # 环境变量（生产环境）
+    env_file:
+      - .env.prod
+    environment:
+      - NODE_ENV=production
+      - NEXT_TELEMETRY_DISABLED=1
+
+    # 生产环境数据卷
+    volumes:
+      # 数据持久化
+      - app_data:/app/data
+      - app_logs:/app/logs
+
+    # 网络���置
+    networks:
+      - smart-diagram-network
+
+    # 重启策略（生产环境）
+    restart: always
+
+    # 健康检查（更严格的生产环境配置）
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-s", "http://localhost:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+    # 生产环境资源限制
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '1.0'
+          memory: 512M
+
+    # 安全配置
+    security_opt:
+      - no-new-privileges:true
+    read_only: true  # 只读文件系统（如果应用需要写入，需要指定 writable tmpfs）
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100m
+      - /var/run:noexec,nosuid,size=100m
+
+    # 用户配置
+    user: "1001:1001"
+
+    # 日志配置（生产环境）
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+    # 标签（用于服务发现和监控）
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.smart-diagram.rule=Host(`your-domain.com`)"
+      - "traefik.http.routers.smart-diagram.tls=true"
+      - "traefik.http.routers.smart-diagram.tls.certresolver=letsencrypt"
+      - "com.datadoghq.ad.check_names=['smart-diagram']"
+      - "com.datadoghq.ad.init_configs=[{}]"
+      - "com.datadoghq.ad.instances=[{'url': 'http://%%host%%:3000/api/health'}]"
+
+networks:
+  smart-diagram-network:
+    driver: bridge
+    name: smart-diagram-prod-network
+    labels:
+      - "com.docker.compose.project=smart-diagram-prod"
+
+volumes:
+  app_data:
+    driver: local
+    name: smart-diagram-prod-data
+  app_logs:
+    driver: local
+    name: smart-diagram-prod-logs
