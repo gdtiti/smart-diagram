@@ -110,7 +110,7 @@ const DrawioCanvas = forwardRef(function DrawioCanvas(
       },
       baseUrl
     );
-  }, [action.configure, action.exportDiagram, onSave, onLoad, onClose, onExport, onError, baseUrl, configuration, exportFormat]);
+  }, [action, onSave, onLoad, onClose, onExport, onError, baseUrl, configuration, exportFormat]);
 
   // Set up message listener
   useEffect(() => {

@@ -29,9 +29,22 @@ export default function DrawPage() {
   // 调用useEngine Hook获取引擎实例
   const engine = useEngine(engineType);
 
-  // 配置状态
-  const [config, setConfig] = useState(null);
-  const [usePassword, setUsePassword] = useState(false);
+  // 配置状态 - 使用 lazy initialization
+  const [config, setConfig] = useState(() => {
+    try {
+      return getConfig();
+    } catch {
+      return null;
+    }
+  });
+
+  const [usePassword, setUsePassword] = useState(() => {
+    try {
+      return localStorage.getItem('smart-diagram-use-password') === 'true';
+    } catch {
+      return false;
+    }
+  });
 
   // 模态框状态
   const [isConfigManagerOpen, setIsConfigManagerOpen] = useState(false);
@@ -59,23 +72,12 @@ export default function DrawPage() {
   // Chat面板宽度（用于调整画布padding）
   const [chatPanelWidth, setChatPanelWidth] = useState(0);
 
-  // Load config on mount and listen for config changes
+  // Listen for storage changes to sync across tabs
   useEffect(() => {
-    const savedConfig = getConfig();
-    if (savedConfig) {
-      setConfig(savedConfig);
-    }
-
-    // Load password access state
-    const passwordEnabled =
-      localStorage.getItem('smart-diagram-use-password') === 'true';
-    setUsePassword(passwordEnabled);
-
-    // Listen for storage changes to sync across tabs
     const handleStorageChange = (e) => {
       const key = e?.key;
 
-      // 任意 LLM 配置相关 key 变化时，重新计算“最终生效配置”
+      // 任意 LLM 配置相关 key 变化时，重新计算"最终生效配置"
       const configKeys = [
         'smart-diagram-local-configs',
         'smart-diagram-active-local-config',
