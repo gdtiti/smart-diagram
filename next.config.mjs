@@ -8,20 +8,9 @@ const nextConfig = {
     return config;
   },
 
-  // Disable ESLint during builds to prevent build failures
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-
   // Disable TypeScript type checking during builds
   typescript: {
     ignoreBuildErrors: true,
-  },
-
-  // Environment variables
-  env: {
-    NEXT_TELEMETRY_DISABLED: '1',
-    NODE_ENV: 'production',
   },
 };
 
