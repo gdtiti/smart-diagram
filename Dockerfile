@@ -1,5 +1,8 @@
-# 使用官方 Node.js 18 Alpine 作为基础镜像
-FROM node:18-alpine
+# 使用官方 Node.js 20 Alpine 作为基础镜像（Next.js 16 要求）
+FROM node:20-alpine
+
+# 安装必要的系统依赖
+RUN apk add --no-cache libc6-compat curl
 
 # 安装 pnpm
 RUN npm install -g pnpm
@@ -39,6 +42,10 @@ USER nextjs
 
 # 暴露端口
 EXPOSE 3000
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:3000/api/health || exit 1
 
 # 启动应用
 CMD ["node", "server.js"]

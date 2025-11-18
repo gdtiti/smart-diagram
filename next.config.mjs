@@ -21,6 +21,7 @@ const nextConfig = {
   // Environment variables
   env: {
     NEXT_TELEMETRY_DISABLED: '1',
+    NODE_ENV: 'production',
   },
 };
 
