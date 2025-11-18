@@ -136,6 +136,30 @@ export default function DrawPage() {
     return () => window.removeEventListener('chatpanel-visibility-change', onVisibility);
   }, []);
 
+  // 处理引擎切换后的历史恢复
+  const [pendingHistory, setPendingHistory] = useState(null);
+
+  useEffect(() => {
+    if (pendingHistory && engine) {
+      const restoreHistory = async () => {
+        try {
+          await engine.handleRestoreHistory(pendingHistory);
+          setIsHistoryModalOpen(false);
+          showNotification({ title: '已恢复', message: '历史记录已恢复', type: 'success' });
+          setPendingHistory(null);
+        } catch (error) {
+          console.error('Failed to restore history:', error);
+          showNotification({ title: '恢复失败', message: '历史记录恢复失败', type: 'error' });
+          setPendingHistory(null);
+        }
+      };
+
+      // 延迟执行以确保引擎完全初始化
+      const timer = setTimeout(restoreHistory, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [pendingHistory, engine, showNotification]);
+
   // Notification helpers
   const showNotification = useCallback((opts) => {
     setNotification({ isOpen: true, title: opts.title || '', message: opts.message || '', type: opts.type || 'info' });
@@ -217,11 +241,7 @@ export default function DrawPage() {
         type: 'warning',
         onConfirm: () => {
           setEngineType(history.editor);
-          // 等待引擎切换完成后再恢复历史
-          setTimeout(async () => {
-            const newEngine = useEngine(history.editor);
-            await newEngine.handleRestoreHistory(history);
-          }, 100);
+          setPendingHistory(history); // 设置待恢复的历史记录
           setConfirmDialog(prev => ({ ...prev, isOpen: false }));
         }
       });
@@ -232,7 +252,7 @@ export default function DrawPage() {
     await engine.handleRestoreHistory(history);
     setIsHistoryModalOpen(false);
     showNotification({ title: '已恢复', message: '历史记录已恢复', type: 'success' });
-  }, [engineType, engine, showNotification]);
+  }, [engineType, engine, showNotification, pendingHistory]);
 
   /**
    * 缓存 Excalidraw elements 解析结果
