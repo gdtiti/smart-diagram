@@ -87,12 +87,10 @@ jobs:
     if: github.event_name != 'pull_request' || github.event_name == 'workflow_dispatch'
 
     permissions:
-      contents: read
+      contents: write
       packages: write
       # 允许写入 ID token 用于 Docker 镜像签名
       id-token: write
-      # 允许写入仓库内容
-      contents: write
 
     outputs:
       image: ghcr.io/${{ github.repository }}:latest
